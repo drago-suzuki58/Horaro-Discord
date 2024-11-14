@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "horaro-discord"
+version = "0.1.0"
+description = ""
+authors = ["drago-suzuki58 <dorasuzu58@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.13.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
