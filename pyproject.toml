@@ -9,10 +9,13 @@ readme = "README.md"
 python = "^3.11"
 discord-py = "^2.4.0"
 pandas = "^2.2.3"
+loguru = "^0.7.2"
+requests = "^2.32.3"
 
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.13.0"
+pandas-stubs = "^2.2.3.241009"
 
 [build-system]
 requires = ["poetry-core"]
