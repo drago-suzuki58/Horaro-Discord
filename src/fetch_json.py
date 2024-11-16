@@ -5,6 +5,8 @@ import json
 import os
 from typing import Optional
 
+import src.env as env
+
 def fetch_json(url: str) -> Optional[dict]:
     try:
         response = requests.get(f"{url}.json")
@@ -48,8 +50,32 @@ def save_jsons(json_datas: list[dict], base_dir: str) -> None:
     logger.debug(f"Saved {len(json_datas)} json files to {base_dir}")
     return
 
+
+def get_json(url: str) -> Optional[dict]:
+    path = os.path.join(env.CACHE_DIR, f"{url}.json")
+    if not os.path.exists(path):
+        data = fetch_json(url)
+        if data:
+            save_json(data, env.CACHE_DIR)
+            return data
+        else:
+            logger.error(f"File not found: {path}")
+            return None
+    else:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+def get_jsons(urls: list[str]) -> list[dict]:
+    jsons = []
+    for u in urls:
+        json_data = get_json(u)
+        if json_data:
+            jsons.append(json_data)
+    logger.debug(f"Got {len(jsons)} json files")
+    return jsons
+
 # test code
 #if __name__ == '__main__':
-#    json_datas = fetch_jsons_from_csv("events.csv")
-#    save_jsons(json_datas, "/dev/cache/")
+#    json_datas = fetch_jsons_from_csv(env.EVENTS)
+#    save_jsons(json_datas, env.CACHE_DIR)
 #    logger.info("Finished")
