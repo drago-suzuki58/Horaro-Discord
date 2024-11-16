@@ -4,7 +4,7 @@ from typing import Optional
 
 EVENTS = "events.csv"
 
-def add_event(url: str, notice: int, server: int, channel: int):
+def add_event(url: str, notice: int, server: int, channel: int) -> None:
     df = pd.read_csv(EVENTS)
 
     new_event = pd.DataFrame({
@@ -18,15 +18,17 @@ def add_event(url: str, notice: int, server: int, channel: int):
     df = pd.concat([df, new_df], ignore_index=True)
     df.to_csv(EVENTS, index=False)
     logger.info(f"Added new event: {url}")
+    return
 
-def remove_event(url):
+def remove_event(url) -> None:
     df = pd.read_csv(EVENTS)
 
     df = df[df["url"] != url]
     df.to_csv(EVENTS, index=False)
     logger.info(f"Removed event: {url}")
+    return
 
-def update_event(old_url: str, new_url: Optional[str] = None, notice: Optional[int] = None, server: Optional[int] = None, channel: Optional[int] = None):
+def update_event(old_url: str, new_url: Optional[str] = None, notice: Optional[int] = None, server: Optional[int] = None, channel: Optional[int] = None) -> None:
     df = pd.read_csv(EVENTS)
 
     if new_url is not None:
@@ -40,15 +42,16 @@ def update_event(old_url: str, new_url: Optional[str] = None, notice: Optional[i
 
     df.to_csv(EVENTS, index=False)
     logger.info(f"Updated event: {old_url}")
+    return
 
-def get_events():
+def get_events() -> pd.DataFrame:
     return pd.read_csv(EVENTS)
 
-def get_events_server(server: int):
+def get_events_server(server: int) -> pd.DataFrame:
     df = pd.read_csv(EVENTS)
     return df[df["server"] == server]
 
-def get_events_channel(channel: int):
+def get_events_channel(channel: int) -> pd.DataFrame:
     df = pd.read_csv(EVENTS)
     return df[df["channel"] == channel]
 

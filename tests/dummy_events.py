@@ -8,7 +8,7 @@ EVENTS = "dev/events.csv"
 fake = Faker()
 
 def generate_events(n: int):
-    urls = [f"{fake.url()}/{fake.slug()}/{fake.slug()}" for _ in range(n)]
+    urls = [f"{fake.url()}{fake.slug()}/{fake.slug()}" for _ in range(n)]
     notices = [random.randint(1, 100) for _ in range(n)]
     servers = [random.randint(100000000000000000, 999999999999999999) for _ in range(n)]
     channels = [random.randint(100000000000000000, 999999999999999999) for _ in range(n)]
@@ -20,7 +20,13 @@ def generate_events(n: int):
         "channel": channels
     })
     if os.path.exists(EVENTS):
-        df.to_csv(EVENTS, mode='a', header=False, index=False)
+        with open(EVENTS, 'r', encoding='utf-8') as f:
+            has_header = f.readline().strip() != ''
+
+        if has_header:
+            df.to_csv(EVENTS, mode='a', header=False, index=False)
+        else:
+            df.to_csv(EVENTS, index=False)
     else:
         df.to_csv(EVENTS, index=False)
     logger.info(f"Generated {n} events")
