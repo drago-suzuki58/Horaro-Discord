@@ -428,6 +428,31 @@ files = [
 all = ["flake8 (>=7.1.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
 
 [[package]]
+name = "lococore"
+version = "0.2.0"
+description = "LocoCore is a library that provides a base class for multilingual applications."
+optional = false
+python-versions = "<4.0,>=3.11"
+files = [
+    {file = "lococore-0.2.0-py3-none-any.whl", hash = "sha256:57749cf3f6430619f721ae847adcb1ef4297c3635f28e1eb9e34317a5c4a147e"},
+    {file = "lococore-0.2.0.tar.gz", hash = "sha256:9987f54883806b064ed26e61cc7d91f909b5fdb43a39ec6884454aa12a19fb3e"},
+]
+
+[[package]]
+name = "locojson"
+version = "0.2.0"
+description = "LocoJSON is a lightweight Python library for multi-language support, using hierarchical JSON-based translations with fallback and detailed logging for missing keys."
+optional = false
+python-versions = "<4.0,>=3.11"
+files = [
+    {file = "locojson-0.2.0-py3-none-any.whl", hash = "sha256:a44103a303ae1b0a79aa75d785462812dd10245ddc8b3883e000343f9c1b98f3"},
+    {file = "locojson-0.2.0.tar.gz", hash = "sha256:0125f04c0e7e51e52dd7889447ec8625b407d8d87687f056a654e6dd0ce89684"},
+]
+
+[package.dependencies]
+lococore = ">=0.2.0,<0.3.0"
+
+[[package]]
 name = "loguru"
 version = "0.7.2"
 description = "Python logging made (stupidly) simple"
@@ -1114,4 +1139,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "91cbe39fd51cdbf7819340d66024c8f33567abe8a649c725962f9e3d1c6d8cf7"
+content-hash = "19c4011f06a6864280225e644f20709619659fd3700cf20f5119bbc597b59ab4"
