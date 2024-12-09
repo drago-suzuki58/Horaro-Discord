@@ -16,12 +16,12 @@ async def send_notification(server_id: int, channel_id: int, message: str):
     if guild is None:
         logger.error(f"Guild not found: {server_id}")
         return
-    
+
     channel = guild.get_channel(channel_id)
     if channel is None:
         logger.error(f"Channel not found: {channel_id}")
         return
-    
+
     if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
         await channel.send(message)
     else:
@@ -61,14 +61,32 @@ async def schedule_notifications():
                 logger.debug(f"No scheduled time found in item: {item['data'][0]}")
                 continue
             scheduled_time = datetime.datetime.fromisoformat(scheduled_str)
-            notice_time = scheduled_time - datetime.timedelta(minutes=info['notice'])
+            notice_time = scheduled_time - datetime.timedelta(minutes=info["notice"])
 
             if now > scheduled_time:
-                logger.debug(f"Event already started: {item['data'][0]}")
-                continue
+                if scheduled_time + datetime.timedelta(seconds=item["length_t"]) > now:
+                    logger.debug(f"Event already started: {item['data'][0]}")
+                    await send_notification(
+                        info["server"],
+                        info["channel"],
+                        f"{event_data['schedule']['name']}'s program has already started!"
+                    )
+                    continue
+                else:
+                    logger.debug(f"Event already finished: {item['data'][0]}")
+                    continue
 
             if (scheduled_time - now).total_seconds() > 3600 * 6:
                 logger.debug(f"Event too far in the future: {item['data'][0]}")
+                continue
+
+            if scheduled_time > now - datetime.timedelta(minutes=info["notice"]):
+                logger.debug(f"Event has already passed notice time: {item['data'][0]}")
+                await send_notification(
+                    info["server"],
+                    info["channel"],
+                    f"{event_data['schedule']['name']}'s program has already started!"
+                )
                 continue
 
             logger.debug(f"Scheduled notification: {item['data'][0]} Notice time: {notice_time}")
@@ -81,8 +99,8 @@ async def schedule_notifications():
 
 async def process_event_queue():
     while True:
-        if not event_queue == []:
-            await asyncio.sleep(1)
+        if not event_queue or event_queue is []:
+            await asyncio.sleep(60)
             continue
 
         notice_timestamp, notification_info = heapq.heappop(event_queue)
