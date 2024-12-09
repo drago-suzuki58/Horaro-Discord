@@ -14,10 +14,12 @@ class Confirm(discord.ui.View):
     @discord.ui.button(label="Yes", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         events.remove_event(self.url)
+        logger.debug(f"{interaction.guild_id} - Removed event with URL: {self.url}")
         await interaction.response.edit_message(content="Removed the event successfully!", view=None)
 
     @discord.ui.button(label="No", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.debug(f"{interaction.guild_id} - Cancelled removal of event with URL: {self.url}")
         await interaction.response.edit_message(content="Event removal cancelled.", view=None)
 
 
@@ -37,6 +39,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         data = fetch_json.fetch_jsons(server_events["url"].tolist())
         fetch_json.save_jsons(data, env.CACHE_DIR)
 
+        logger.debug(f"{interaction.guild_id} - Updated schedule data")
         await message.edit(content="Updated the schedule data successfully!")
 
     @tree.command(
@@ -57,8 +60,10 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         data = fetch_json.fetch_json(url)
         if data:
             fetch_json.save_json(data, env.CACHE_DIR)
+            logger.debug(f"{interaction.guild_id} - Added event with URL: {url}")
             await message.edit(content="Added the event successfully!")
         else:
+            logger.warning(f"{interaction.guild_id} - Failed to fetch event data for URL: {url}")
             await message.edit(content="Failed to fetch the event data. Please check the URL and try again.")
 
     @tree.command(
@@ -98,6 +103,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
                     value=f"Notice: {row['notice']} minutes\nChannel: {channel_name}",
                     inline=False
                 )
+            logger.debug(f"{interaction.guild_id} - Listed events: {len(embed.fields)}")
             await message.edit(content=None, embed=embed)
         else:
             await message.edit(content="No events found.")
@@ -130,6 +136,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         message = await interaction.followup.send("Changing channel...", wait=True)
 
         events.update_event(url, channel=channel)
+        logger.debug(f"{interaction.guild_id} - Changed channel for event with URL: {url}")
         await message.edit(content="Channel changed successfully!")
 
     @tree.command(
@@ -145,6 +152,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         message = await interaction.followup.send("Changing URL...", wait=True)
 
         events.update_event(old_url, new_url=new_url)
+        logger.debug(f"{interaction.guild_id} - Changed URL for event with URL: {old_url}")
         await message.edit(content="URL changed successfully!")
 
 
