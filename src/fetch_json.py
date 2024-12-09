@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import json
 import os
+from urllib.parse import urlparse
 from typing import Optional
 
 import src.env as env
@@ -52,9 +53,11 @@ def save_jsons(json_datas: list[dict], base_dir: str) -> None:
 
 
 def get_json(url: str) -> Optional[dict]:
-    url_path = url.lstrip("/")
+    parsed_url = urlparse(url)
+    url_path = parsed_url.path.lstrip("/")
     path = os.path.join(env.CACHE_DIR, f"{url_path}.json")
     if not os.path.exists(path):
+        logger.debug(f"File not found: {path}")
         data = fetch_json(url)
         if data:
             save_json(data, env.CACHE_DIR)

@@ -1,7 +1,8 @@
 from loguru import logger
 import discord
 from discord.app_commands import describe
-from datetime import timedelta
+from datetime import timedelta, datetime
+import pytz
 
 import src.env as env
 import src.fetch_json as fetch_json
@@ -168,7 +169,6 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     )
     @describe(
         url="URL of the event",
-        description="Description of the event",
     )
     async def create_server_event(interaction: discord.Interaction, url: str, description: str=""):
         await interaction.response.defer()
@@ -186,29 +186,120 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         else:
             await message.edit(content="Event not found in this server. Please add the event first.")
             return
+
         data = fetch_json.get_json(server_event["url"])
         if data is None:
-            await message.edit(content="Failed to fetch the event data. Please check the URL and try again.")
+            await message.edit(content="Failed to get the event data. Please check the URL and try again.")
             return
 
         start_time = discord.utils.parse_time(data["schedule"]["start"])
-        scheduled_t = discord.utils.parse_time(data["schedule"]["items"][-1]["scheduled"])
-        end_time = scheduled_t + timedelta(seconds=data["schedule"]["items"][-1]["length_t"])
+        if len(data["schedule"]["items"]) == 0:
+            end_time = start_time + timedelta(hours=1)
+        else:
+            scheduled_t = discord.utils.parse_time(data["schedule"]["items"][-1]["scheduled"])
+            end_time = scheduled_t + timedelta(seconds=data["schedule"]["items"][-1]["length_t"])
+
+        timezone = pytz.timezone(data["schedule"]["timezone"])
+        now = datetime.now(tz=timezone)
+
+        if start_time <= now or end_time <= now:
+            await message.edit(content="Cannot schedule event in the past. Please check the event times.")
+            return
+
+        existing_events = await interaction.guild.fetch_scheduled_events() # type: ignore
+        for existing_event in existing_events:
+            if existing_event.name == data["schedule"]["name"]:
+                await message.edit(content=f"Scheduled event with the name '{existing_event.name}' already exists.")
+                return
 
         try:
             scheduled_event = await interaction.guild.create_scheduled_event( # type: ignore
                 name=data["schedule"]["name"],
-                description=description,
+                description=data["schedule"]["description"],
                 start_time=start_time,
                 end_time=end_time,
                 entity_type=discord.EntityType.external,
                 privacy_level=discord.PrivacyLevel.guild_only,
                 location=server_event["url"],
             )
-            logger.debug(f"Created scheduled event: {scheduled_event.name}")
+            logger.debug(f"{interaction.guild_id} - Created scheduled event: {scheduled_event.name}")
             await message.edit(content=f"Scheduled event '{scheduled_event.name}' created successfully!")
         except Exception as e:
             logger.error(f"Failed to create scheduled event: {e}")
             await message.edit(content=f"Failed to create scheduled event: {e}")
+
+    @tree.command(
+        name="create_server_event_all",
+        description="Create all server events from the schedule",
+    )
+    async def create_server_event_all(interaction: discord.Interaction):
+        await interaction.response.defer()
+        message = await interaction.followup.send("Creating all events...", wait=True)
+
+        created_events = 0
+
+        guild_id = interaction.guild_id if interaction.guild_id is not None else -1
+
+        if guild_id == -1:
+            await message.edit(content="This command can only be used in a server.")
+            return
+
+        server_events = events.get_events_server(guild_id)
+        if server_events.empty:
+            await message.edit(content="No events found in this server. Please add events first.")
+            return
+
+        data = fetch_json.get_jsons(server_events["url"].tolist())
+        if data is None:
+            await message.edit(content="Failed to get the event data. Please check the URL and try again.")
+            return
+
+        existing_events = await interaction.guild.fetch_scheduled_events() # type: ignore
+        for event, server_event in zip(data, server_events.to_dict(orient="records")):
+            try:
+                start_time = discord.utils.parse_time(event["schedule"]["start"])
+                if len(event["schedule"]["items"]) == 0:
+                    end_time = start_time + timedelta(hours=1)
+                else:
+                    scheduled_t = discord.utils.parse_time(event["schedule"]["items"][-1]["scheduled"])
+                    end_time = scheduled_t + timedelta(seconds=event["schedule"]["items"][-1]["length_t"])
+
+                timezone = pytz.timezone(event["schedule"]["timezone"])
+                now = datetime.now(tz=timezone)
+
+                if start_time <= now or end_time <= now:
+                    message = await message.edit(content=f"{message.content}\nCannot schedule event in the past. Please check the event times.")
+                    continue
+
+                event_exists = False
+                for existing_event in existing_events:
+                    if existing_event.name == event["schedule"]["name"]:
+                        message = await message.edit(content=f"{message.content}\nScheduled event with the name '{existing_event.name}' already exists.")
+                        event_exists = True
+                        break
+                if event_exists:
+                    continue
+
+                scheduled_event = await interaction.guild.create_scheduled_event( # type: ignore
+                    name=event["schedule"]["name"],
+                    description=event["schedule"]["description"],
+                    start_time=start_time,
+                    end_time=end_time,
+                    entity_type=discord.EntityType.external,
+                    privacy_level=discord.PrivacyLevel.guild_only,
+                    location=server_event["url"],
+                )
+                created_events += 1
+                logger.debug(f"{interaction.guild_id} - Created scheduled event: {scheduled_event.name}")
+            except Exception as e:
+                logger.error(f"Failed to create scheduled event: {e}")
+                message = await message.edit(content=f"{message.content}\nFailed to create scheduled event: {e}")
+                continue
+
+        if created_events == 0:
+            await message.edit(content="No events created.")
+        else:
+            await message.edit(content=f"All scheduled events({created_events}) created successfully!")
+
 
     logger.info("Commands set up successfully!")
