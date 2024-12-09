@@ -3,6 +3,7 @@ import discord
 import asyncio
 import datetime
 import heapq
+import pytz
 
 import src.dbot.bot as bot
 import src.events as events
@@ -30,7 +31,6 @@ async def send_notification(server_id: int, channel_id: int, message: str):
 async def schedule_notifications():
     logger.debug("Scheduling notifications start...")
     events_info = await events.get_events()
-    now = datetime.datetime.now(datetime.timezone.utc)
 
     for _, info in events_info.iterrows():
         event_data = await fetch_json.get_json(info['url'])
@@ -50,69 +50,99 @@ async def schedule_notifications():
 
         event_start_time = datetime.datetime.fromisoformat(event_start_time_str)
         monitor_start_time = event_start_time - datetime.timedelta(minutes=info['notice'] * 2)
+        timezone = pytz.timezone(event_data["schedule"]["timezone"])
+        now = datetime.datetime.now(timezone)
 
         if now < monitor_start_time:
             logger.debug(f"Event not yet in monitoring range: {info['url']}")
             continue
 
+        logger.debug(f"Monitoring event: {info['url']} Start time: {event_start_time}")
         for item in items:
             scheduled_str = item.get("scheduled", None)
             if not scheduled_str:
                 logger.debug(f"No scheduled time found in item: {item['data'][0]}")
-                continue
+                break
             scheduled_time = datetime.datetime.fromisoformat(scheduled_str)
             notice_time = scheduled_time - datetime.timedelta(minutes=info["notice"])
 
             if now > scheduled_time:
                 if scheduled_time + datetime.timedelta(seconds=item["length_t"]) > now:
-                    logger.debug(f"Event already started: {item['data'][0]}")
-                    await send_notification(
-                        info["server"],
-                        info["channel"],
-                        f"{event_data['schedule']['name']}'s program has already started!"
-                    )
-                    continue
+                    logger.debug(f"Program already started: {item['data'][0]}")
+                    heapq.heappush(event_queue, (float(notice_time.timestamp()), {
+                        "server": info["server"],
+                        "channel": info["channel"],
+                        "message": f"{event_data['schedule']['name']}'s next program is already started in {int((now - scheduled_time).total_seconds() / 60)} minutes ago!",
+                        "event_time": scheduled_time,
+                        "timezone": timezone
+                    }))
                 else:
-                    logger.debug(f"Event already finished: {item['data'][0]}")
+                    logger.debug(f"Program are already finished: {item['data'][0]}")
                     continue
 
             if (scheduled_time - now).total_seconds() > 3600 * 6:
                 logger.debug(f"Event too far in the future: {item['data'][0]}")
-                continue
+                break
 
-            if scheduled_time > now - datetime.timedelta(minutes=info["notice"]):
-                logger.debug(f"Event has already passed notice time: {item['data'][0]}")
-                await send_notification(
-                    info["server"],
-                    info["channel"],
-                    f"{event_data['schedule']['name']}'s program has already started!"
-                )
+            if (scheduled_time < now and scheduled_time + datetime.timedelta(seconds=info["notice"]) > now):
+                logger.debug(f"Program notify deley: {item['data'][0]}")
+                time_diff = now.timestamp() - (scheduled_time - datetime.timedelta(minutes=info['notice'])).timestamp()
+                minutes_diff = int(time_diff / 60)
+                heapq.heappush(event_queue, (float(notice_time.timestamp()), {
+                    "server": info["server"],
+                    "channel": info["channel"],
+                    "message": f"{event_data['schedule']['name']}'s next program will start in {minutes_diff} minutes!",
+                    "event_time": scheduled_time,
+                    "timezone": timezone
+                }))
                 continue
 
             logger.debug(f"Scheduled notification: {item['data'][0]} Notice time: {notice_time}")
-            heapq.heappush(event_queue, (notice_time, {
-                "server": info["server"],
-                "channel": info["channel"],
-                "message": f"{event_data['schedule']['name']}'s next program will start in {info['notice']} minutes!",
-                "event_time": scheduled_time
-            }))
+            if not is_duplicate_event(event_queue, float(notice_time.timestamp()), info["server"], info["channel"], scheduled_time):
+                time_diff = now.timestamp() - (scheduled_time - datetime.timedelta(minutes=info['notice'])).timestamp()
+                minutes_diff = int(time_diff / 60)
+                heapq.heappush(event_queue, (float(notice_time.timestamp()), {
+                    "server": info["server"],
+                    "channel": info["channel"],
+                    "message": f"{event_data['schedule']['name']}'s next program will start in {minutes_diff} minutes!",
+                    "event_time": scheduled_time,
+                    "timezone": timezone
+                }))
+            else:
+                logger.debug(f"Duplicate event found: {item['data'][0]}")
 
 async def process_event_queue():
     while True:
         if not event_queue or event_queue is []:
-            await asyncio.sleep(60)
+            await asyncio.sleep(1)
             continue
 
         notice_timestamp, notification_info = heapq.heappop(event_queue)
-        notice_time = datetime.datetime.fromtimestamp(notice_timestamp, tz=datetime.timezone.utc)
+        notice_time = datetime.datetime.fromtimestamp(notice_timestamp, tz=notification_info["timezone"])
+        now = datetime.datetime.now(notification_info["timezone"])
 
-        now = datetime.datetime.now(datetime.timezone.utc)
         wait_seconds = (notice_time - now).total_seconds()
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
-        logger.debug(f"Sending notification: {notification_info['message']}")
-        await send_notification(
-            notification_info["server"],
-            notification_info["channel"],
-            notification_info["message"]
-        )
+            logger.debug(f"Sending notification: {notification_info['message']}")
+            await send_notification(
+                notification_info["server"],
+                notification_info["channel"],
+                notification_info["message"]
+            )
+        else:
+            logger.debug(f"Sending notification delay: {notification_info['message']}")
+            await send_notification(
+                notification_info["server"],
+                notification_info["channel"],
+                notification_info["message"]
+            )
+
+def is_duplicate_event(event_queue, notice_timestamp, server, channel, event_time):
+    for event in event_queue:
+        if (abs(event[0] - notice_timestamp) < 1.0 and
+            event[1]["server"] == server and
+            event[1]["channel"] == channel and
+            event[1]["event_time"] == event_time):
+            return True
+    return False

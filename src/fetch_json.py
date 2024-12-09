@@ -19,7 +19,6 @@ async def fetch_json(url: str) -> Optional[dict]:
                     return None
                 response.raise_for_status()
                 logger.debug(f"Fetched {url}.json")
-                await notify.schedule_notifications()
                 return await response.json()
         except aiohttp.ClientError as e:
             logger.error(f"Failed to fetch {url}.json: {e}")

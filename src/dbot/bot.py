@@ -1,6 +1,7 @@
 from loguru import logger
 import discord
 from discord.ext import tasks
+import asyncio
 
 import src.env as env
 import src.dbot.notify as notify
@@ -18,6 +19,7 @@ def bot_setup(bot: discord.Client, tree: discord.app_commands.CommandTree):
 
         fetch_jsons.start()
         schedule_notifications.start()
+        asyncio.create_task(notify.process_event_queue())
 
         await tree.sync()
         logger.info("Synced commands Successfully")
