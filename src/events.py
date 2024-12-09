@@ -6,6 +6,7 @@ import pandas as pd
 from typing import Optional
 
 import src.env as env
+import src.fetch_json as fetch_json
 
 async def read_csv_async(file_path):
     loop = asyncio.get_event_loop()
@@ -54,6 +55,8 @@ async def update_event(old_url: str, new_url: Optional[str] = None, notice: Opti
         df.loc[df["url"] == old_url, "channel"] = channel
 
     await to_csv_async(df, env.EVENTS)
+    data = await fetch_json.fetch_json(new_url if new_url is not None else old_url)
+    await fetch_json.save_json(data, env.CACHE_DIR) # type:ignore
     logger.info(f"Updated event: {old_url}")
 
 async def get_events() -> pd.DataFrame:

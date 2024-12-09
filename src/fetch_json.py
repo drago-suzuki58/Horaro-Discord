@@ -8,6 +8,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import src.env as env
+import src.dbot.notify as notify
 
 async def fetch_json(url: str) -> Optional[dict]:
     async with aiohttp.ClientSession() as session:
@@ -18,6 +19,7 @@ async def fetch_json(url: str) -> Optional[dict]:
                     return None
                 response.raise_for_status()
                 logger.debug(f"Fetched {url}.json")
+                await notify.schedule_notifications()
                 return await response.json()
         except aiohttp.ClientError as e:
             logger.error(f"Failed to fetch {url}.json: {e}")
