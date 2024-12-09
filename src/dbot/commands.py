@@ -1,6 +1,7 @@
 from loguru import logger
 import discord
 from discord.app_commands import describe
+from datetime import timedelta
 
 import src.env as env
 import src.fetch_json as fetch_json
@@ -161,5 +162,53 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         logger.debug(f"{interaction.guild_id} - Changed URL for event with URL: {old_url}")
         await message.edit(content="URL changed successfully!")
 
+    @tree.command(
+        name="create_server_event",
+        description="Create a server event from a schedule",
+    )
+    @describe(
+        url="URL of the event",
+        description="Description of the event",
+    )
+    async def create_server_event(interaction: discord.Interaction, url: str, description: str=""):
+        await interaction.response.defer()
+        message = await interaction.followup.send("Creating event...", wait=True)
+
+        guild_id = interaction.guild_id if interaction.guild_id is not None else -1
+
+        if guild_id == -1:
+            await message.edit(content="This command can only be used in a server.")
+            return
+
+        server_events = events.get_events_multiple(url=url, server=guild_id)
+        if not server_events.empty:
+            server_event = server_events.iloc[0]
+        else:
+            await message.edit(content="Event not found in this server. Please add the event first.")
+            return
+        data = fetch_json.get_json(server_event["url"])
+        if data is None:
+            await message.edit(content="Failed to fetch the event data. Please check the URL and try again.")
+            return
+
+        start_time = discord.utils.parse_time(data["schedule"]["start"])
+        scheduled_t = discord.utils.parse_time(data["schedule"]["items"][-1]["scheduled"])
+        end_time = scheduled_t + timedelta(seconds=data["schedule"]["items"][-1]["length_t"])
+
+        try:
+            scheduled_event = await interaction.guild.create_scheduled_event( # type: ignore
+                name=data["schedule"]["name"],
+                description=description,
+                start_time=start_time,
+                end_time=end_time,
+                entity_type=discord.EntityType.external,
+                privacy_level=discord.PrivacyLevel.guild_only,
+                location=server_event["url"],
+            )
+            logger.debug(f"Created scheduled event: {scheduled_event.name}")
+            await message.edit(content=f"Scheduled event '{scheduled_event.name}' created successfully!")
+        except Exception as e:
+            logger.error(f"Failed to create scheduled event: {e}")
+            await message.edit(content=f"Failed to create scheduled event: {e}")
 
     logger.info("Commands set up successfully!")

@@ -52,7 +52,8 @@ def save_jsons(json_datas: list[dict], base_dir: str) -> None:
 
 
 def get_json(url: str) -> Optional[dict]:
-    path = os.path.join(env.CACHE_DIR, f"{url}.json")
+    url_path = url.lstrip("/")
+    path = os.path.join(env.CACHE_DIR, f"{url_path}.json")
     if not os.path.exists(path):
         data = fetch_json(url)
         if data:
