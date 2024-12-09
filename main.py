@@ -3,12 +3,8 @@ import discord
 
 import src.env as env
 from src.dbot.commands import setup_commands
-from src.dbot.bot import bot_setup
+from src.dbot.bot import bot_setup, bot, tree
 
-intents = discord.Intents.default()
-
-bot = discord.Client(intents=intents)
-tree = discord.app_commands.CommandTree(bot)
 
 if __name__ == "__main__":
     logger.add("log/file_{time}.log", rotation="1 week", enqueue=True)

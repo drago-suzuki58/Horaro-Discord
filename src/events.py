@@ -16,8 +16,8 @@ async def read_csv_async(file_path):
 
 async def to_csv_async(df, file_path):
     loop = asyncio.get_event_loop()
-    csv_content = await loop.run_in_executor(None, lambda: df.to_csv(index=False))
-    async with aiofiles.open(file_path, mode='w') as f:
+    csv_content = await loop.run_in_executor(None, lambda: df.to_csv(index=False, line_terminator='\n'))
+    async with aiofiles.open(file_path, mode='w', newline='') as f:
         await f.write(csv_content)
 
 async def add_event(url: str, notice: int, server: int, channel: int) -> None:
