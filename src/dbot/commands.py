@@ -15,7 +15,7 @@ class Confirm(discord.ui.View):
 
     @discord.ui.button(label="Yes", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        events.remove_event(self.url)
+        await events.remove_event(self.url)
         logger.debug(f"{interaction.guild_id} - Removed event with URL: {self.url}")
         await interaction.response.edit_message(content="Removed the event successfully!", view=None)
 
@@ -35,11 +35,12 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def update_schedule(interaction: discord.Interaction):
         await interaction.response.defer()
         message = await interaction.followup.send("Updating schedule...", wait=True)
+        logger.debug(f"{interaction.guild_id} - update_schedule")
 
         guild_id = interaction.guild_id if interaction.guild_id is not None else -1 # If the interaction is not in a guild, set the guild_id to -1
-        server_events = events.get_events_server(guild_id)
-        data = fetch_json.fetch_jsons(server_events["url"].tolist())
-        fetch_json.save_jsons(data, env.CACHE_DIR)
+        server_events = await events.get_events_server(guild_id)
+        data = await fetch_json.fetch_jsons(server_events["url"].tolist())
+        await fetch_json.save_jsons(data, env.CACHE_DIR)
 
         logger.debug(f"{interaction.guild_id} - Updated schedule data")
         await message.edit(content="Updated the schedule data successfully!")
@@ -55,19 +56,20 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def add_event(interaction: discord.Interaction, url: str, notice: int = 10):
         await interaction.response.defer()
         message = await interaction.followup.send("Adding event...", wait=True)
+        logger.debug(f"{interaction.guild_id} - add_event")
 
         guild_id = interaction.guild_id if interaction.guild_id is not None else -1
         channel_id = interaction.channel_id if interaction.channel_id is not None else -1
 
-        server_events = events.get_events_multiple(url=url, server=guild_id)
+        server_events = await events.get_events_multiple(url=url, server=guild_id)
         if len(server_events) > 0:
             await message.edit(content="Event already exists.")
             return
 
-        data = fetch_json.fetch_json(url)
+        data = await fetch_json.fetch_json(url)
         if data:
-            fetch_json.save_json(data, env.CACHE_DIR)
-            events.add_event(url, notice, guild_id, channel_id)
+            await fetch_json.save_json(data, env.CACHE_DIR)
+            await events.add_event(url, notice, guild_id, channel_id)
             logger.debug(f"{interaction.guild_id} - Added event with URL: {url}")
             await message.edit(content="Added the event successfully!")
         else:
@@ -82,6 +84,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         url="URL of the event",
     )
     async def remove_event(interaction: discord.Interaction, url: str):
+        logger.debug(f"{interaction.guild_id} - remove_event")
         view = Confirm(url)
         await interaction.response.send_message("Are you sure you want to remove the event?", view=view)
 
@@ -92,9 +95,10 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def list_events(interaction: discord.Interaction):
         await interaction.response.defer()
         message = await interaction.followup.send("Listing events...", wait=True)
+        logger.debug(f"{interaction.guild_id} - list_events")
 
         guild_id = interaction.guild_id if interaction.guild_id is not None else -1
-        server_events = events.get_events_server(guild_id)
+        server_events = await events.get_events_server(guild_id)
 
         if len(server_events) > 0:
             embed = discord.Embed(title="Events List", color=4526227)
@@ -127,8 +131,10 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def change_notice(interaction: discord.Interaction, url: str, notice: int):
         await interaction.response.defer()
         message = await interaction.followup.send("Changing notice time...", wait=True)
+        logger.debug(f"{interaction.guild_id} - change_notice")
 
-        events.update_event(url, notice=notice)
+        await events.update_event(url, notice=notice)
+        logger.debug(f"{interaction.guild_id} - Changed notice time for event with URL: {url}")
         await message.edit(content="Notice time changed successfully!")
 
     @tree.command(
@@ -142,8 +148,9 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def change_channel(interaction: discord.Interaction, url: str, channel: int):
         await interaction.response.defer()
         message = await interaction.followup.send("Changing channel...", wait=True)
+        logger.debug(f"{interaction.guild_id} - change_channel")
 
-        events.update_event(url, channel=channel)
+        await events.update_event(url, channel=channel)
         logger.debug(f"{interaction.guild_id} - Changed channel for event with URL: {url}")
         await message.edit(content="Channel changed successfully!")
 
@@ -158,8 +165,9 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def change_url(interaction: discord.Interaction, old_url: str, new_url: str):
         await interaction.response.defer()
         message = await interaction.followup.send("Changing URL...", wait=True)
+        logger.debug(f"{interaction.guild_id} - change_url")
 
-        events.update_event(old_url, new_url=new_url)
+        await events.update_event(old_url, new_url=new_url)
         logger.debug(f"{interaction.guild_id} - Changed URL for event with URL: {old_url}")
         await message.edit(content="URL changed successfully!")
 
@@ -173,6 +181,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def create_server_event(interaction: discord.Interaction, url: str, description: str=""):
         await interaction.response.defer()
         message = await interaction.followup.send("Creating event...", wait=True)
+        logger.debug(f"{interaction.guild_id} - create_server_event")
 
         guild_id = interaction.guild_id if interaction.guild_id is not None else -1
 
@@ -180,14 +189,14 @@ def setup_commands(tree: discord.app_commands.CommandTree):
             await message.edit(content="This command can only be used in a server.")
             return
 
-        server_events = events.get_events_multiple(url=url, server=guild_id)
+        server_events = await events.get_events_multiple(url=url, server=guild_id)
         if not server_events.empty:
             server_event = server_events.iloc[0]
         else:
             await message.edit(content="Event not found in this server. Please add the event first.")
             return
 
-        data = fetch_json.get_json(server_event["url"])
+        data = await fetch_json.get_json(server_event["url"])
         if data is None:
             await message.edit(content="Failed to get the event data. Please check the URL and try again.")
             return
@@ -235,6 +244,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
     async def create_server_event_all(interaction: discord.Interaction):
         await interaction.response.defer()
         message = await interaction.followup.send("Creating all events...", wait=True)
+        logger.debug(f"{interaction.guild_id} - create_server_event_all")
 
         created_events = 0
 
@@ -244,13 +254,15 @@ def setup_commands(tree: discord.app_commands.CommandTree):
             await message.edit(content="This command can only be used in a server.")
             return
 
-        server_events = events.get_events_server(guild_id)
+        server_events = await events.get_events_server(guild_id)
         if server_events.empty:
+            logger.debug(f"{interaction.guild_id} - No events found in this server")
             await message.edit(content="No events found in this server. Please add events first.")
             return
 
-        data = fetch_json.get_jsons(server_events["url"].tolist())
+        data = await fetch_json.get_jsons(server_events["url"].tolist())
         if data is None:
+            logger.error(f"{interaction.guild_id} - Failed to get event data")
             await message.edit(content="Failed to get the event data. Please check the URL and try again.")
             return
 
@@ -268,12 +280,14 @@ def setup_commands(tree: discord.app_commands.CommandTree):
                 now = datetime.now(tz=timezone)
 
                 if start_time <= now or end_time <= now:
+                    logger.debug(f"{interaction.guild_id} - Cannot schedule event in the past. Please check the event times.")
                     message = await message.edit(content=f"{message.content}\nCannot schedule event in the past. Please check the event times.")
                     continue
 
                 event_exists = False
                 for existing_event in existing_events:
                     if existing_event.name == event["schedule"]["name"]:
+                        logger.debug(f"{interaction.guild_id} - Scheduled event with the name '{existing_event.name}' already exists")
                         message = await message.edit(content=f"{message.content}\nScheduled event with the name '{existing_event.name}' already exists.")
                         event_exists = True
                         break
@@ -297,8 +311,10 @@ def setup_commands(tree: discord.app_commands.CommandTree):
                 continue
 
         if created_events == 0:
+            logger.debug(f"{interaction.guild_id} - No events created")
             await message.edit(content="No events created.")
         else:
+            logger.debug(f"{interaction.guild_id} - All scheduled events({created_events}) created successfully")
             await message.edit(content=f"All scheduled events({created_events}) created successfully!")
 
 
