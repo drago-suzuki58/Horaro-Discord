@@ -47,6 +47,14 @@ def update_event(old_url: str, new_url: Optional[str] = None, notice: Optional[i
 def get_events() -> pd.DataFrame:
     return pd.read_csv(env.EVENTS)
 
+def get_events_url(url: str) -> pd.DataFrame:
+    df = pd.read_csv(env.EVENTS)
+    return df[df["url"] == url]
+
+def get_events_notice(notice: int) -> pd.DataFrame:
+    df = pd.read_csv(env.EVENTS)
+    return df[df["notice"] == notice]
+
 def get_events_server(server: int) -> pd.DataFrame:
     df = pd.read_csv(env.EVENTS)
     return df[df["server"] == server]
@@ -54,6 +62,25 @@ def get_events_server(server: int) -> pd.DataFrame:
 def get_events_channel(channel: int) -> pd.DataFrame:
     df = pd.read_csv(env.EVENTS)
     return df[df["channel"] == channel]
+
+def get_events_multiple(url: str|None = None, notice: int|None = None, server: int|None = None, channel: int|None = None) -> pd.DataFrame:
+    df = pd.read_csv(env.EVENTS)
+    conditions = []
+    if url is not None:
+        conditions.append(df["url"] == url)
+    if notice is not None:
+        conditions.append(df["notice"] == notice)
+    if server is not None:
+        conditions.append(df["server"] == server)
+    if channel is not None:
+        conditions.append(df["channel"] == channel)
+
+    if conditions:
+        combined_conditions = conditions[0]
+        for condition in conditions[1:]:
+            combined_conditions &= condition
+        return df[combined_conditions]
+    return df
 
 # test code
 #if __name__ == '__main__':

@@ -56,10 +56,16 @@ def setup_commands(tree: discord.app_commands.CommandTree):
 
         guild_id = interaction.guild_id if interaction.guild_id is not None else -1
         channel_id = interaction.channel_id if interaction.channel_id is not None else -1
-        events.add_event(url, notice, guild_id, channel_id)
+
+        server_events = events.get_events_multiple(url=url, server=guild_id)
+        if len(server_events) > 0:
+            await message.edit(content="Event already exists.")
+            return
+
         data = fetch_json.fetch_json(url)
         if data:
             fetch_json.save_json(data, env.CACHE_DIR)
+            events.add_event(url, notice, guild_id, channel_id)
             logger.debug(f"{interaction.guild_id} - Added event with URL: {url}")
             await message.edit(content="Added the event successfully!")
         else:
