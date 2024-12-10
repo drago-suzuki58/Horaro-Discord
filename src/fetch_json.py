@@ -30,8 +30,8 @@ async def fetch_jsons(urls: list[str]) -> list[dict]:
         json_data = await fetch_json(url)
         if json_data:
             jsons.append(json_data)
-        await asyncio.sleep(0.5)  # 0.5秒の遅延を挟む
-    logger.debug(f"Fetched {len(jsons)} json files")
+        await asyncio.sleep(0.5)
+    logger.info(f"Fetched {len(jsons)} json files")
     return jsons
 
 async def fetch_jsons_from_csv(csv_path: str) -> list[dict]:
@@ -52,7 +52,7 @@ async def save_json(json_data: dict, base_dir: str) -> None:
 async def save_jsons(json_datas: list[dict], base_dir: str) -> None:
     for json_data in json_datas:
         await save_json(json_data, base_dir)
-    logger.debug(f"Saved {len(json_datas)} json files to {base_dir}")
+    logger.info(f"Saved {len(json_datas)} json files to {base_dir}")
     return
 
 
@@ -61,7 +61,7 @@ async def get_json(url: str) -> Optional[dict]:
     url_path = parsed_url.path.lstrip("/")
     path = os.path.join(env.CACHE_DIR, f"{url_path}.json")
     if not os.path.exists(path):
-        logger.debug(f"File not found: {path}")
+        logger.warning(f"File not found: {path}")
         data = await fetch_json(url)
         if data:
             await save_json(data, env.CACHE_DIR)
@@ -79,7 +79,7 @@ async def get_jsons(urls: list[str]) -> list[dict]:
         json_data = await get_json(u)
         if json_data:
             jsons.append(json_data)
-    logger.debug(f"Got {len(jsons)} json files")
+    logger.info(f"Got {len(jsons)} json files")
     return jsons
 
 # test code

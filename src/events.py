@@ -33,14 +33,14 @@ async def add_event(url: str, notice: int, server: int, channel: int) -> None:
 
     df = pd.concat([df, new_event], ignore_index=True)
     await to_csv_async(df, env.EVENTS)
-    logger.info(f"Added new event: {url}")
+    logger.debug(f"Added new event: {url}")
 
 async def remove_event(url) -> None:
     df = await read_csv_async(env.EVENTS)
 
     df = df[df["url"] != url]
     await to_csv_async(df, env.EVENTS)
-    logger.info(f"Removed event: {url}")
+    logger.debug(f"Removed event: {url}")
 
 async def update_event(old_url: str, new_url: Optional[str] = None, notice: Optional[int] = None, server: Optional[int] = None, channel: Optional[int] = None) -> None:
     df = await read_csv_async(env.EVENTS)

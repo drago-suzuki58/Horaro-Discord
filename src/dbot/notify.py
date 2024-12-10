@@ -5,6 +5,7 @@ import datetime
 import heapq
 import pytz
 
+import src.env as env
 import src.dbot.bot as bot
 import src.events as events
 import src.fetch_json as fetch_json
@@ -95,7 +96,7 @@ async def schedule_notifications():
             else:
                 pass
 
-            if (scheduled_time - now).total_seconds() > 3600 * 6:
+            if (scheduled_time - now).total_seconds() > 3600 * env.SCHEDULE_NOTIFICATIONS_INTERVAL:
                 logger.debug(f"Event too far in the future: {item['data'][0]}")
                 break
             else:

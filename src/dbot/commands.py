@@ -2,6 +2,7 @@ from loguru import logger
 import discord
 from discord.app_commands import describe
 from datetime import timedelta, datetime
+import dateutil.parser
 import pytz
 
 import src.env as env
@@ -73,8 +74,17 @@ def setup_commands(tree: discord.app_commands.CommandTree):
             await fetch_json.save_json(data, env.CACHE_DIR)
             await events.add_event(url, notice, guild_id, channel_id)
             await notify.schedule_notifications()
+
+            embed = discord.Embed(
+                title=data["schedule"]["name"],
+                color=5872610,
+                url=url,
+                timestamp=dateutil.parser.parse(data["schedule"]["start"]),
+                description=f"{data['schedule']['description']}"
+                )
+
             logger.debug(f"{interaction.guild_id} - Added event with URL: {url}")
-            await message.edit(content="Added the event successfully!")
+            await message.edit(content="Added the event successfully!", embed=embed)
         else:
             logger.warning(f"{interaction.guild_id} - Failed to fetch event data for URL: {url}")
             await message.edit(content="Failed to fetch the event data. Please check the URL and try again.")

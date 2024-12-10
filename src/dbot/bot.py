@@ -29,13 +29,13 @@ def bot_setup(bot: discord.Client, tree: discord.app_commands.CommandTree):
         await tree.sync()
         logger.info("Synced commands Successfully")
 
-    @tasks.loop(hours=24)
+    @tasks.loop(hours=env.FETCH_JSONS_INTERVAL)
     async def fetch_jsons():
         data = await fetch_json.fetch_jsons_from_csv(env.EVENTS)
         await fetch_json.save_jsons(data, env.CACHE_DIR)
         global initialize_fetch_jsons
         initialize_fetch_jsons = True
 
-    @tasks.loop(hours=6)
+    @tasks.loop(hours=env.SCHEDULE_NOTIFICATIONS_INTERVAL)
     async def schedule_notifications():
         await notify.schedule_notifications()

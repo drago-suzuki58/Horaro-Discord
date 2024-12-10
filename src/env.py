@@ -15,3 +15,7 @@ EVENTS = os.getenv("EVENTS") or "events.csv"
 
 # Language
 LANG = os.getenv("LANG") or "en"
+
+# Periodic loop
+FETCH_JSONS_INTERVAL = float(os.getenv("FETCH_JSONS_INTERVAL") or 24) # hours
+SCHEDULE_NOTIFICATIONS_INTERVAL = float(os.getenv("SCHEDULE_NOTIFICATIONS_INTERVAL") or 6) # hours
