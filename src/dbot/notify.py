@@ -77,7 +77,7 @@ async def schedule_notifications():
                     if notification_id not in sent_notifications:
                         logger.debug(f"Program already started: {item['data'][0]}")
                         description = "\n".join([str(i) for i in item['data']])
-                        embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description)
+                        embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description, timestamp=scheduled_time)
                         heapq.heappush(event_queue, (float(notice_time.timestamp()), {
                             "server": info["server"],
                             "channel": info["channel"],
@@ -106,7 +106,7 @@ async def schedule_notifications():
                 if notification_id not in sent_notifications:
                     logger.debug(f"Program notify deley: {item['data'][0]}")
                     description = "\n".join([str(i) for i in item['data']])
-                    embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description)
+                    embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description, timestamp=scheduled_time)
                     time_diff = now.timestamp() - (scheduled_time - datetime.timedelta(minutes=info['notice'])).timestamp()
                     minutes_diff = int(time_diff / 60)
                     heapq.heappush(event_queue, (float(notice_time.timestamp()), {
@@ -128,7 +128,7 @@ async def schedule_notifications():
                     logger.debug(f"Scheduled notification: {item['data'][0]} Notice time: {notice_time}")
 
                     description = "\n".join([str(i) for i in item['data']])
-                    embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description)
+                    embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description, timestamp=scheduled_time)
                     heapq.heappush(event_queue, (float(notice_time.timestamp()), {
                         "server": info["server"],
                         "channel": info["channel"],

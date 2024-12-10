@@ -330,5 +330,72 @@ def setup_commands(tree: discord.app_commands.CommandTree):
             logger.debug(f"{interaction.guild_id} - All scheduled events({created_events}) created successfully")
             await message.edit(content=f"All scheduled events({created_events}) created successfully!")
 
+    @tree.command(
+        name="get_now_program",
+        description="Get the current program",
+    )
+    async def get_now_program(interaction: discord.Interaction):
+        await interaction.response.defer()
+        message = await interaction.followup.send("Getting the current program...", wait=True)
+        logger.debug(f"{interaction.guild_id} - get_now_program")
+
+        guild_id = interaction.guild_id if interaction.guild_id is not None else -1
+        server_events = await events.get_events_server(guild_id)
+
+        embeds = []
+
+        if len(server_events) == 0:
+            logger.debug(f"{interaction.guild_id} - No events found in this server")
+            return
+
+        for _, info in server_events.iterrows():
+            event_data = await fetch_json.get_json(info["url"])
+            if event_data is None:
+                logger.debug(f"Failed to get event data: {info['url']}")
+                continue
+
+            items = event_data["schedule"]["items"]
+            if not items:
+                logger.debug(f"No items found in event data: {info['url']}")
+                continue
+
+            event_start_time_str = event_data["schedule"]["start"]
+            if not event_start_time_str:
+                logger.debug(f"No start time found in event data: {info['url']}")
+                continue
+
+            event_start_time = dateutil.parser.parse(event_start_time_str)
+            monitor_start_time = event_start_time - timedelta(minutes=info['notice'] * 2)
+            timezone = pytz.timezone(event_data["schedule"]["timezone"])
+            now = datetime.now(timezone)
+
+            if now < monitor_start_time:
+                logger.debug(f"Event not yet in monitoring range: {info['url']}")
+                continue
+
+            logger.debug(f"Monitoring event: {info['url']} Start time: {event_start_time}")
+            for item in items:
+                scheduled_str = item.get("scheduled", None)
+                if not scheduled_str:
+                    logger.debug(f"No scheduled time found in item: {item['data'][0]}")
+                    break
+                else:
+                    pass
+                scheduled_time = dateutil.parser.parse(scheduled_str)
+
+                if scheduled_time < now < scheduled_time + timedelta(seconds=item["length_t"]):
+                    embed = discord.Embed(
+                        title=event_data["schedule"]["name"],
+                        color=5025616,
+                        url=info["url"],
+                        timestamp=scheduled_time,
+                        description=f"{item['data'][0]}"
+                    )
+                    logger.debug(f"{interaction.guild_id} - Found current program: {item['data'][0]}")
+                    embeds.append(embed)
+                    continue
+                else:
+                    pass
+        await message.edit(content=None, embeds=embeds if embeds else [])
 
     logger.info("Commands set up successfully!")
