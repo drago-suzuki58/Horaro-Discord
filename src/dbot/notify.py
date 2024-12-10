@@ -11,8 +11,9 @@ import src.fetch_json as fetch_json
 
 
 event_queue = []
+sent_notifications = set()
 
-async def send_notification(server_id: int, channel_id: int, message: str):
+async def send_notification(server_id: int, channel_id: int, message: str, embed: discord.Embed):
     guild = bot.bot.get_guild(server_id)
     if guild is None:
         logger.error(f"Guild not found: {server_id}")
@@ -24,7 +25,7 @@ async def send_notification(server_id: int, channel_id: int, message: str):
         return
 
     if isinstance(channel, (discord.TextChannel, discord.VoiceChannel)):
-        await channel.send(message)
+        await channel.send(message, embed=embed)
     else:
         logger.error(f"Channel type not supported for sending messages: {type(channel).__name__}")
 
@@ -63,51 +64,81 @@ async def schedule_notifications():
             if not scheduled_str:
                 logger.debug(f"No scheduled time found in item: {item['data'][0]}")
                 break
+            else:
+                pass
             scheduled_time = datetime.datetime.fromisoformat(scheduled_str)
             notice_time = scheduled_time - datetime.timedelta(minutes=info["notice"])
+            
+            notification_id = f"{info['server']}_{info['channel']}_{scheduled_time.timestamp()}"
 
             if now > scheduled_time:
                 if scheduled_time + datetime.timedelta(seconds=item["length_t"]) > now:
-                    logger.debug(f"Program already started: {item['data'][0]}")
-                    heapq.heappush(event_queue, (float(notice_time.timestamp()), {
-                        "server": info["server"],
-                        "channel": info["channel"],
-                        "message": f"{event_data['schedule']['name']}'s next program is already started in {int((now - scheduled_time).total_seconds() / 60)} minutes ago!",
-                        "event_time": scheduled_time,
-                        "timezone": timezone
-                    }))
+                    if notification_id not in sent_notifications:
+                        logger.debug(f"Program already started: {item['data'][0]}")
+                        description = "\n".join([str(i) for i in item['data']])
+                        embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description)
+                        heapq.heappush(event_queue, (float(notice_time.timestamp()), {
+                            "server": info["server"],
+                            "channel": info["channel"],
+                            "message": f"{event_data['schedule']['name']}'s next program is already started in {int((now - scheduled_time).total_seconds() / 60)} minutes ago!",
+                            "embed": embed,
+                            "event_time": scheduled_time,
+                            "timezone": timezone
+                        }))
+                        sent_notifications.add(notification_id)
+                    else:
+                        logger.debug(f"Program notice already sent: {item['data'][0]}")
+                        continue
                 else:
                     logger.debug(f"Program are already finished: {item['data'][0]}")
                     continue
+            else:
+                pass
 
             if (scheduled_time - now).total_seconds() > 3600 * 6:
                 logger.debug(f"Event too far in the future: {item['data'][0]}")
                 break
+            else:
+                pass
 
             if (scheduled_time < now and scheduled_time + datetime.timedelta(seconds=info["notice"]) > now):
-                logger.debug(f"Program notify deley: {item['data'][0]}")
-                time_diff = now.timestamp() - (scheduled_time - datetime.timedelta(minutes=info['notice'])).timestamp()
-                minutes_diff = int(time_diff / 60)
-                heapq.heappush(event_queue, (float(notice_time.timestamp()), {
-                    "server": info["server"],
-                    "channel": info["channel"],
-                    "message": f"{event_data['schedule']['name']}'s next program will start in {minutes_diff} minutes!",
-                    "event_time": scheduled_time,
-                    "timezone": timezone
-                }))
-                continue
+                if notification_id not in sent_notifications:
+                    logger.debug(f"Program notify deley: {item['data'][0]}")
+                    description = "\n".join([str(i) for i in item['data']])
+                    embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description)
+                    time_diff = now.timestamp() - (scheduled_time - datetime.timedelta(minutes=info['notice'])).timestamp()
+                    minutes_diff = int(time_diff / 60)
+                    heapq.heappush(event_queue, (float(notice_time.timestamp()), {
+                        "server": info["server"],
+                        "channel": info["channel"],
+                        "message": f"{event_data['schedule']['name']}'s next program will start in {minutes_diff} minutes!",
+                        "embed": embed,
+                        "event_time": scheduled_time,
+                        "timezone": timezone
+                    }))
+                    sent_notifications.add(notification_id)
+                    continue
+                else:
+                    logger.debug(f"Program notice already sent: {item['data'][0]}")
+                    continue
 
-            logger.debug(f"Scheduled notification: {item['data'][0]} Notice time: {notice_time}")
             if not is_duplicate_event(event_queue, float(notice_time.timestamp()), info["server"], info["channel"], scheduled_time):
-                time_diff = now.timestamp() - (scheduled_time - datetime.timedelta(minutes=info['notice'])).timestamp()
-                minutes_diff = int(time_diff / 60)
-                heapq.heappush(event_queue, (float(notice_time.timestamp()), {
-                    "server": info["server"],
-                    "channel": info["channel"],
-                    "message": f"{event_data['schedule']['name']}'s next program will start in {minutes_diff} minutes!",
-                    "event_time": scheduled_time,
-                    "timezone": timezone
-                }))
+                if notification_id not in sent_notifications:
+                    logger.debug(f"Scheduled notification: {item['data'][0]} Notice time: {notice_time}")
+
+                    description = "\n".join([str(i) for i in item['data']])
+                    embed = discord.Embed(title="Program detail", url=info["url"], color=5025616, description=description)
+                    heapq.heappush(event_queue, (float(notice_time.timestamp()), {
+                        "server": info["server"],
+                        "channel": info["channel"],
+                        "message": f"{event_data['schedule']['name']}'s next program will start in {info['notice']} minutes!",
+                        "embed": embed,
+                        "event_time": scheduled_time,
+                        "timezone": timezone
+                    }))
+                    sent_notifications.add(notification_id)
+                else:
+                    logger.debug(f"Program notice already sent: {item['data'][0]}")
             else:
                 logger.debug(f"Duplicate event found: {item['data'][0]}")
 
@@ -128,14 +159,16 @@ async def process_event_queue():
             await send_notification(
                 notification_info["server"],
                 notification_info["channel"],
-                notification_info["message"]
+                notification_info["message"],
+                notification_info["embed"]
             )
         else:
             logger.debug(f"Sending notification delay: {notification_info['message']}")
             await send_notification(
                 notification_info["server"],
                 notification_info["channel"],
-                notification_info["message"]
+                notification_info["message"],
+                notification_info["embed"]
             )
 
 def is_duplicate_event(event_queue, notice_timestamp, server, channel, event_time):

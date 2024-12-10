@@ -5,8 +5,9 @@ from datetime import timedelta, datetime
 import pytz
 
 import src.env as env
-import src.fetch_json as fetch_json
 import src.events as events
+import src.fetch_json as fetch_json
+import src.dbot.notify as notify
 
 class Confirm(discord.ui.View):
     def __init__(self, url: str):
@@ -41,6 +42,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         server_events = await events.get_events_server(guild_id)
         data = await fetch_json.fetch_jsons(server_events["url"].tolist())
         await fetch_json.save_jsons(data, env.CACHE_DIR)
+        await notify.schedule_notifications()
 
         logger.debug(f"{interaction.guild_id} - Updated schedule data")
         await message.edit(content="Updated the schedule data successfully!")
@@ -70,6 +72,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
         if data:
             await fetch_json.save_json(data, env.CACHE_DIR)
             await events.add_event(url, notice, guild_id, channel_id)
+            await notify.schedule_notifications()
             logger.debug(f"{interaction.guild_id} - Added event with URL: {url}")
             await message.edit(content="Added the event successfully!")
         else:
@@ -232,7 +235,7 @@ def setup_commands(tree: discord.app_commands.CommandTree):
                 location=server_event["url"],
             )
             logger.debug(f"{interaction.guild_id} - Created scheduled event: {scheduled_event.name}")
-            await message.edit(content=f"Scheduled event '{scheduled_event.name}' created successfully!")
+            await message.edit(content=f"Scheduled event '{scheduled_event.name} created successfully!")
         except Exception as e:
             logger.error(f"Failed to create scheduled event: {e}")
             await message.edit(content=f"Failed to create scheduled event: {e}")
