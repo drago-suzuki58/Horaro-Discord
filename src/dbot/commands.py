@@ -396,6 +396,9 @@ def setup_commands(tree: discord.app_commands.CommandTree):
                     continue
                 else:
                     pass
-        await message.edit(content=None, embeds=embeds if embeds else [])
+        if embeds == []:
+            await message.edit(content="No current program found.")
+        else:
+            await message.edit(content=None, embeds=embeds if embeds else [])
 
     logger.info("Commands set up successfully!")

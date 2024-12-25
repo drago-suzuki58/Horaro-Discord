@@ -51,10 +51,13 @@ async def schedule_notifications():
             continue
 
         event_start_time = datetime.datetime.fromisoformat(event_start_time_str)
-        monitor_start_time = event_start_time - datetime.timedelta(minutes=info['notice'] * 2)
+        monitor_start_time = event_start_time - datetime.timedelta(minutes=info['notice'], hours=env.SCHEDULE_NOTIFICATIONS_INTERVAL)
         timezone = pytz.timezone(event_data["schedule"]["timezone"])
         now = datetime.datetime.now(timezone)
 
+        print(f"Event start time: {event_start_time}")
+        print(f"Monitor start time: {monitor_start_time}")
+        print(f"Now: {now}")
         if now < monitor_start_time:
             logger.debug(f"Event not yet in monitoring range: {info['url']}")
             continue
