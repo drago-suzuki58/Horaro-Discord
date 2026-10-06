@@ -1,77 +1,87 @@
 # Horaro Discord Bot
 
-このBotは[Horaro](https://horaro.org)でホスティングされたイベントスケジュールをDiscordで確認し、あなたの友人とイベントを楽しむために作成されたものです。
+[Horaro](https://horaro.net) のスケジュールを Discord サーバーに登録し、各プログラムの開始前にチャンネルへ通知する Bot です。
 
-Other Language LEADME  
 [English](README.md)
 
-## 特徴
+## できること
 
-- Discordのイベント機能に登録してサーバーに通知
-- リマインダーを設定して配信の見逃しの防止
-- 今行われているイベントプログラムをDiscordから離れずに確認
+- 登録したスケジュールの各プログラムを、開始の指定分前にチャンネルへ通知します。
+- 主催者がスケジュールを変更した場合も、最新のスケジュールに合わせて通知します。
+  - イベント中は 1 分ごとに Horaro を確認します。
+  - 通知済みのプログラムの開始予定が変わると、通知メッセージを編集して変更前後の時刻を示します。5 分以上ずれた場合は、新しい時刻に合わせてもう一度通知します。
+  - スケジュールから削除されたプログラムは、通知メッセージにその旨を表示します。
+- 現在・次のプログラムや今後のプログラムを Discord から確認できます。
+- スケジュールに合わせた Discord のサーバーイベントを作成し、開始・終了時刻を自動で更新できます。
 
-## 使用方法
-
-このリポジトリをフォークやクローンして
-
-```sh
-git clone https://github.com/drago-suzuki58/Horaro-Discord.git
-```
-
-pipまたはpoetryで
-
-```sh
-pip install -r requirements.txt
-```
-
-か
-
-```sh
-poetry install
-```
-
-をして依存関係をインストールしてください。
-
-そして、`.env.EXAMPLE`を`.env`にコピーし、トークンなど内容を編集してから保存してください。
-
-準備が整い、main.pyを実行すればBotを動作させられます。
+時刻は Discord のタイムスタンプで表示されるため、見る人のタイムゾーンで表示されます。表示言語は日本語です。
 
 ## コマンド
 
-- `/add_event`  
-  入力されたURLからHoraroイベントを追加します。  
-  `notice`を追加すればリマインダーの時間を分単位で指定できます。
+`/horaro` は誰でも使えます。`/horaro-admin` は既定で「サーバーの管理」権限を持つメンバーだけが使えます（サーバー設定の「連携サービス」から変更できます）。
 
-- `/change_channel`  
-  登録済みのHoraroイベントのリマインダーをするチャンネルを変更できます。  
-  該当するHoraroイベントのURLと変更先のチャンネルID(数字)を入力してください。
+| コマンド | 内容 |
+|---|---|
+| `/horaro list` | 登録されているスケジュールの一覧 |
+| `/horaro now [schedule]` | 現在と次のプログラム |
+| `/horaro upcoming schedule [count]` | 今後のプログラム（最大 10 件） |
+| `/horaro-admin add url [channel] [notice] [server_event]` | スケジュールを登録します |
+| `/horaro-admin edit schedule [channel] [notice] [key_column] [server_event]` | 登録内容を変更します |
+| `/horaro-admin remove schedule` | 登録を解除します |
+| `/horaro-admin refresh [schedule]` | Horaro から最新のスケジュールをすぐに取得します |
 
-- `/change_notice`  
-  登録済みのHoraroイベントのリマインダーの時間を変更できます。  
-  該当するHoraroイベントのURLと変更後のリマインダー時間を分単位で入力してください。
+- `url` にはスケジュールの URL（例: `https://horaro.net/event/schedule`）を指定します。
+  - イベントの URL を指定すると、スケジュールを選択メニューから選べます。
+  - イベント名を入力すると、Horaro の検索結果が候補に出ます。
+  - horaro.org の URL も使えます（horaro.net として扱います）。
+- `notice` は開始の何分前に通知するかです（既定 10 分）。
+- `key_column` は通知の見出しにする列です。プログラムの識別にも使うため、ゲーム名など変わりにくい列を選んでください。登録時はゲーム名らしい列を自動で選びます。
+- `server_event` を有効にすると、Discord のサーバーイベントを作成します。すでに開始しているスケジュールには作成できません。
 
-- `/change_url`  
-  登録済みのHoraroイベントのURL参照先を変更できます。  
-  該当するHoraroイベントの古いURLと変更後のURLを入力してください。
+## 導入方法
 
-- `/create_server_event`  
-  登録済みのHoraroイベントのURLから、Discordのサーバーイベントを作成できます。  
-  該当するHoraroイベントのURLを入力してください。
+[uv](https://docs.astral.sh/uv/) が必要です。
 
-- `/create_server_event_all`  
-  コマンドが実行されたサーバーで登録済みのHoraroイベント全てから一括でDiscordのサーバーイベントを作成できます。
+1. リポジトリを取得して依存関係をインストールします。
 
-- `/get_now_program`  
-  登録済みにHoraroイベント全ての中から、現在行われているプログラムを抽出し、10個まで表示します。
+   ```sh
+   git clone https://github.com/drago-suzuki58/Horaro-Discord.git
+   cd Horaro-Discord
+   uv sync --no-dev
+   ```
 
-- `/list_events`  
-  コマンドが実行されたサーバーに登録されているHoraroイベントのリストを表示します。  
+2. [Discord Developer Portal](https://discord.com/developers/applications) でアプリケーションと Bot を作成し、トークンを取得します。特権インテントは不要です。
 
-- `remove_event`  
-  登録済みのHoraroイベントから指定されたURLと一致するものを削除します。  
-  確認機能付きです。
+3. 次の URL の `CLIENT_ID` をアプリケーション ID に置き換えて開き、Bot をサーバーに招待します。
 
-- `/update_schedule`  
-  コマンドが実行されたサーバーに登録されているHoraroイベントのデータを、一括でHoraroに掲載されている最新の情報に更新します。
-  デフォルトでは1日ごとに自動で最新情報に更新されますが、必要な場合手動更新も可能です。
+   ```
+   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=17867063954432
+   ```
+
+   付与される権限は「チャンネルを見る」「メッセージを送信」「スレッドでメッセージを送信」「イベントの作成」です。
+
+4. `.env.example` を `.env` にコピーし、`DISCORD_TOKEN` を設定します。
+
+5. 起動します。
+
+   ```sh
+   uv run horaro-discord
+   ```
+
+登録内容と通知の記録は `DATABASE_PATH`（既定 `data/horaro-discord.db`）に保存されます。
+
+## 注意
+
+- 通知は Horaro 上の予定時刻に基づきます。実際の進行が遅れていても、主催者が Horaro のスケジュールを更新するまでは反映されません。
+- 非公開のスケジュールと、非公開の列（hidden column）には対応していません。
+- Bot が停止していた間に開始したプログラムは、起動後に通知しません。
+- horaro.org は 2026 年に静的アーカイブとなったため、データは後継の horaro.net の API から取得します。
+
+## 開発
+
+```sh
+uv sync
+uv run pytest
+uv run ruff check
+uv run mypy
+```
