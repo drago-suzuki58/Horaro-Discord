@@ -58,15 +58,25 @@ Requires [uv](https://docs.astral.sh/uv/).
    uv sync --no-dev
    ```
 
-2. Create an application and a bot in the [Discord Developer Portal](https://discord.com/developers/applications) and get its token. No privileged intents are needed.
+2. Create an application with **New Application** in the [Discord Developer Portal](https://discord.com/developers/applications), then configure it as follows:
 
-3. Invite the bot with the following URL, replacing `CLIENT_ID` with your application ID.
+   - **General Information**: Copy the **Application ID**. This is the `CLIENT_ID` in the invite URL.
+   - **Bot**: Obtain a bot token, using **Reset Token** if needed. Set it as `DISCORD_TOKEN` in `.env` later. This is not the Client Secret or Public Key. Never publish or share the token.
+   - **Bot → Privileged Gateway Intents**: Leave **Presence Intent**, **Server Members Intent** and **Message Content Intent** all **OFF**.
+   - **Bot → Requires OAuth2 Code Grant**: Set this to **OFF**. This bot does not implement an OAuth2 callback.
+   - **Installation → Installation Contexts**: Enable **Guild Install**. **User Install** is not needed; commands work only inside servers.
+   - **Installation → Default Install Settings → Guild Install**: Select the `bot` and `applications.commands` scopes, and only the permissions needed below. Use the same selections if using **OAuth2 → URL Generator** instead.
+   - **General Information → Interactions Endpoint URL**: Leave this blank. Commands are received over the Gateway, so no public HTTP server or redirect URL is needed.
 
-   ```
-   https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=17867063954432
-   ```
+   Enable **Bot → Public Bot** only if other users should be able to invite the bot. It is unnecessary if you invite and operate it yourself.
 
-   This grants View Channels, Send Messages, Send Messages in Threads and Create Events.
+3. Invite the bot with the following URL, replacing `CLIENT_ID` with the Application ID. The user inviting it needs **Manage Server** in the destination server.
+
+    ```
+    https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=17867063954432&integration_type=0
+    ```
+
+   This URL requests View Channels, Send Messages, Send Messages in Threads and Create Events. For notifications in regular text channels only, change it to `permissions=3072`.
 
 4. Copy `.env.example` to `.env` and set `DISCORD_TOKEN`.
 
@@ -79,6 +89,42 @@ Requires [uv](https://docs.astral.sh/uv/).
 Registrations and sent notifications are stored in `DATABASE_PATH` (default `data/horaro-discord.db`).
 
 Before updating, stop the bot and back up the database. Existing databases are migrated automatically at startup, preserving registrations and notification history. Existing Horaro registrations are not switched to the official RiJ site automatically: register the new URL and remove the old registration if it is no longer needed.
+
+### Bot permissions
+
+Bot permissions and the permissions of users running commands are separate. **The bot does not need Administrator.**
+
+| Permission | When required | Purpose |
+|---|---|---|
+| View Channels | Required | Access the notification channel |
+| Send Messages | Required for notifications in regular channels | Post program notifications |
+| Send Messages in Threads | Only for notifications in threads | Post notifications inside threads |
+| Create Events | Only when using `server_event:true` | Create server events, update their planned times and delete them before they start; only events created by the bot are managed |
+
+You can change `permissions` in the invite URL to match the features you use:
+
+| Features | `permissions` value |
+|---|---|
+| Notifications in regular text channels only | `3072` |
+| Regular notifications and server event integration | `17592186047488` |
+| Regular notifications, thread notifications and server event integration | `17867063954432` |
+
+- View Channels and Send Messages must be allowed **in the actual notification channel**, not just on the server role. Check private-channel and category permission overrides.
+- To use a thread as the notification destination, run `/horaro-admin add` inside it and omit `channel`. The bot needs access to the parent channel and permission to send in threads. Add the bot to private threads and unlock locked threads. The bot does not create or manage threads.
+- Server events use an external URL as their location. Grant Create Events **on the server role**. Connect, Speak and Manage Events are not needed; the bot operates only on events it created.
+- Read Message History and Manage Messages are not needed. Notifications are edited using message IDs saved in the database, and only the bot's own messages are edited.
+- Embed Links and Attach Files are not needed. Current messages use text and buttons in Components V2 layouts, not embeds or attachments.
+- The bot does not need Manage Server, Manage Roles, Manage Channels or Manage Webhooks.
+
+See Discord's official [permission reference](https://docs.discord.com/developers/topics/permissions) and [scheduled event permission requirements](https://docs.discord.com/developers/resources/guild-scheduled-event#guild-scheduled-event-permissions-requirements) for details.
+
+### Permissions for users running commands
+
+- Users need View Channels and Use Application Commands in the channel where they run commands.
+- Regular members can use `/horaro`.
+- `/horaro-admin` requires Manage Server by default. To change access for users, roles or channels, go to **Server Settings → Integrations → this bot**. This is a user permission, not a permission the bot itself needs.
+
+Commands are registered automatically when the bot starts. If they do not appear, check that the bot is installed to the server and that the user has permission to use commands. If only scheduled notifications are missing, check the bot's permissions in the notification channel.
 
 ## Notes
 
