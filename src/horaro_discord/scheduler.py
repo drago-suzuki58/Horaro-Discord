@@ -11,7 +11,9 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Protocol
 
-from .horaro import HoraroClient, HoraroError, Item, Schedule, parse_schedule
+from .horaro import HoraroClient
+from .rij import ID_PREFIX, RijClient
+from .schedule import Item, Schedule, ScheduleError, parse_schedule
 from .store import ScheduleRow, Store, Subscription
 from .timeline import (
     LIVE_FETCH_INTERVAL,
@@ -110,9 +112,12 @@ class Scheduler:
         client: HoraroClient,
         discord: DiscordPort,
         clock: Callable[[], int] = lambda: int(time.time()),
+        *,
+        rij: RijClient | None = None,
     ) -> None:
         self.store = store
         self.client = client
+        self.rij = rij
         self.discord = discord
         self.clock = clock
         self._locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
@@ -176,9 +181,16 @@ class Scheduler:
         now = self.clock()
         max_notice = max((s.notice for s in self.store.schedule_subscriptions(row.id)), default=0)
         try:
-            result = await self.client.fetch_schedule(row.id, row.last_modified)
+            if row.source == "horaro":
+                result = await self.client.fetch_schedule(row.id, row.last_modified)
+            elif row.source == "rij" and self.rij is not None:
+                result = await self.rij.fetch_schedule(
+                    row.id.removeprefix(ID_PREFIX), row.last_modified
+                )
+            else:
+                raise ScheduleError(f"Unavailable schedule source: {row.source}")
             schedule = parse_schedule(result.data) if result.data else row.schedule
-        except (HoraroError, KeyError, ValueError, TypeError) as e:
+        except (ScheduleError, KeyError, ValueError, TypeError) as e:
             delay = next_fetch_delay(row.schedule, now, max_notice, row.failures + 1)
             self.store.mark_failed(row.id, next_fetch_at=now + delay)
             log.warning("Failed to fetch schedule %s (retry in %ss): %s", row.id, delay, e)

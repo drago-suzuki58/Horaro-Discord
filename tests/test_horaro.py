@@ -12,13 +12,11 @@ from helpers import BASE_T, payload
 
 from horaro_discord.horaro import (
     HoraroClient,
-    HoraroError,
-    HoraroNotFound,
     HoraroRef,
     event_api_url,
-    parse_schedule,
     parse_url,
 )
+from horaro_discord.schedule import ScheduleError, ScheduleNotFound, parse_schedule
 
 
 @pytest.mark.parametrize(
@@ -33,6 +31,7 @@ from horaro_discord.horaro import (
         ("https://horaro.net/", None),
         ("https://horaro.net/-/api/v1", None),
         ("https://horaro.net/a/b/c", None),
+        ("https://[invalid/a/b", None),
         ("esa", None),
     ],
 )
@@ -135,19 +134,19 @@ async def test_fetch_schedule_by_slug_follows_redirect(
 
 async def test_not_found_html(horaro: tuple[FakeHoraro, HoraroClient]) -> None:
     _, client = horaro
-    with pytest.raises(HoraroNotFound):
+    with pytest.raises(ScheduleNotFound):
         await client.fetch_schedule("missing", None)
 
 
 async def test_server_error_html(horaro: tuple[FakeHoraro, HoraroClient]) -> None:
     _, client = horaro
-    with pytest.raises(HoraroError, match="HTTP 500"):
+    with pytest.raises(ScheduleError, match="HTTP 500"):
         await client.fetch_event("/-/api/v1/error")
 
 
 async def test_timeout(horaro: tuple[FakeHoraro, HoraroClient]) -> None:
     _, client = horaro
-    with pytest.raises(HoraroError):
+    with pytest.raises(ScheduleError):
         await client._get("/-/api/v1/slow", timeout=0.1)
 
 

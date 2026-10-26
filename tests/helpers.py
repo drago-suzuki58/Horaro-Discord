@@ -67,3 +67,33 @@ def payload(
             {"rel": "event", "uri": "https://horaro.net/-/api/v1/events/ev1"},
         ],
     }
+
+
+def rij_payload(
+    rows: list[Row],
+    *,
+    start_t: int = BASE_T,
+    setup_min: int = 0,
+    event_id: str = "sched1",
+) -> dict[str, Any]:
+    return {
+        "schemaVersion": 2,
+        "event": {
+            "id": event_id,
+            "name": "RTA in Japan Winter 2026",
+            "timezone": "Asia/Tokyo",
+            "startsAt": iso(start_t),
+        },
+        "runs": [
+            {
+                "id": f"run-{i + 1:03}",
+                "game": game or "",
+                "category": "Any%",
+                "platform": "PC",
+                "runners": [{"name": runner}] if runner else [],
+                "estimateSeconds": minutes * 60,
+                "setupSeconds": setup_min * 60,
+            }
+            for i, (game, runner, minutes) in enumerate(rows)
+        ],
+    }

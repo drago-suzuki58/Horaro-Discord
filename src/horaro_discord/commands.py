@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -11,7 +12,10 @@ import discord
 from discord import app_commands, ui
 
 from .bot import HoraroBot
-from .horaro import HoraroError, HoraroNotFound, event_api_url, parse_schedule, parse_url
+from .horaro import HoraroClient, event_api_url, parse_url
+from .rij import RijClient
+from .rij import parse_url as parse_rij_url
+from .schedule import ScheduleError, ScheduleNotFound, parse_schedule
 from .scheduler import FetchOutcome, display_name
 from .store import ScheduleRow, Subscription
 from .timeline import (
@@ -116,14 +120,22 @@ async def url_autocomplete(
         return []
     if parse_url(current) or "/" in current:
         return [app_commands.Choice(name=clip(current, 100), value=current[:100])]
-    try:
-        events = await bot_of(interaction).horaro.search_events(current, AUTOCOMPLETE_TIMEOUT)
-    except HoraroError:
-        return []
-    return [
-        app_commands.Choice(name=clip(str(e["name"]), 100), value=str(e["link"]))
-        for e in events[:25]
-    ]
+
+    async def search(client: HoraroClient | RijClient) -> list[dict[str, Any]]:
+        try:
+            return await client.search_events(current, AUTOCOMPLETE_TIMEOUT)
+        except ScheduleError:
+            return []
+
+    bot = bot_of(interaction)
+    rij_events, horaro_events = await asyncio.gather(search(bot.rij), search(bot.horaro))
+    choices: list[app_commands.Choice[str]] = []
+    for source, events in (("RiJ公式", rij_events), ("Horaro", horaro_events)):
+        choices.extend(
+            app_commands.Choice(name=clip(f"{e['name']}（{source}）", 100), value=str(e["link"]))
+            for e in events
+        )
+    return choices[:25]
 
 
 async def key_column_autocomplete(
@@ -208,7 +220,7 @@ async def event_name_of(bot: HoraroBot, payload: dict[str, Any]) -> str:
     if url:
         try:
             return str((await bot.horaro.fetch_event(url))["name"])
-        except (HoraroError, KeyError) as e:
+        except (ScheduleError, KeyError) as e:
             log.warning("Failed to fetch event of schedule %s: %s", payload.get("id"), e)
     return urlsplit(str(payload.get("link", ""))).path.strip("/").split("/")[0]
 
@@ -221,6 +233,8 @@ async def register(
     last_modified: str | None,
     notice: int,
     server_event: bool,
+    *,
+    source: str = "horaro",
 ) -> ui.LayoutView:
     try:
         schedule = parse_schedule(payload)
@@ -233,10 +247,11 @@ async def register(
     now = int(time.time())
     bot.store.save_schedule(
         payload,
-        event_name=await event_name_of(bot, payload),
+        event_name=str(payload["name"]) if source == "rij" else await event_name_of(bot, payload),
         last_modified=last_modified,
         fetched_at=now,
         next_fetch_at=now + next_fetch_delay(schedule, now, notice * 60, 0),
+        source=source,
     )
     sub = bot.store.add_subscription(
         guild_id=guild.id,
@@ -396,7 +411,7 @@ class HoraroGroup(app_commands.Group):
     def __init__(self) -> None:
         super().__init__(
             name="horaro",
-            description="Horaro のスケジュールを表示します",
+            description="Horaro・RTA in Japan のスケジュールを表示します",
             allowed_contexts=GUILD_ONLY,
         )
 
@@ -454,7 +469,7 @@ class AdminGroup(app_commands.Group):
     def __init__(self) -> None:
         super().__init__(
             name="horaro-admin",
-            description="Horaro のスケジュール通知を管理します",
+            description="Horaro・RTA in Japan のスケジュール通知を管理します",
             allowed_contexts=GUILD_ONLY,
             default_permissions=discord.Permissions(manage_guild=True),
         )
@@ -464,7 +479,7 @@ class AdminGroup(app_commands.Group):
     ) -> None:
         await report_error(interaction, error)
 
-    @app_commands.command(name="add", description="Horaro のスケジュールを登録して通知を始めます")
+    @app_commands.command(name="add", description="スケジュールを登録して通知を始めます")
     @app_commands.describe(
         url="スケジュールまたはイベントの URL（イベント名を入力すると検索します）",
         channel="通知するチャンネル（省略すると実行したチャンネル）",
@@ -482,15 +497,23 @@ class AdminGroup(app_commands.Group):
     ) -> None:
         guild = guild_of(interaction)
         target = check_channel(guild, channel or interaction.channel)
+        rij_event = parse_rij_url(url)
         ref = parse_url(url)
-        if ref is None:
+        if ref is None and rij_event is None:
             raise UserError(
-                "Horaro の URL を指定してください（例: https://horaro.net/event/schedule）。"
+                "Horaro または RTA in Japan のスケジュール URL を指定してください。\n"
+                "例: https://horaro.net/event/schedule\n"
+                "例: https://rtain.jp/schedule/?event=rtaijw2026"
             )
         await interaction.response.defer(ephemeral=True, thinking=True)
         bot = bot_of(interaction)
+        source = "rij" if rij_event is not None else "horaro"
         try:
-            if ref.schedule is None:
+            if rij_event is not None:
+                result = await bot.rij.fetch_schedule(rij_event)
+                assert result.data is not None
+                payload, last_modified = result.data, result.last_modified
+            elif ref is not None and ref.schedule is None:
                 schedules = await bot.horaro.list_event_schedules(ref.event)
                 if not schedules:
                     raise UserError("このイベントには公開されているスケジュールがありません。")
@@ -500,20 +523,23 @@ class AdminGroup(app_commands.Group):
                     return
                 payload, last_modified = schedules[0], None
             else:
+                assert ref is not None and ref.schedule is not None
                 result = await bot.horaro.fetch_schedule_by_slug(ref.event, ref.schedule)
                 assert result.data is not None
                 payload, last_modified = result.data, result.last_modified
-        except HoraroNotFound as e:
+        except ScheduleNotFound as e:
             raise UserError(
                 "見つかりませんでした。公開されているスケジュールの URL か確認してください。"
             ) from e
-        except HoraroError as e:
+        except ScheduleError as e:
             log.warning("Failed to fetch %s: %s", url, e)
             raise UserError(
-                "Horaro から取得できませんでした。時間をおいて再度お試しください。"
+                "スケジュールを取得できませんでした。時間をおいて再度お試しください。"
             ) from e
 
-        view = await register(bot, guild, target, payload, last_modified, notice, server_event)
+        view = await register(
+            bot, guild, target, payload, last_modified, notice, server_event, source=source
+        )
         await interaction.followup.send(view=view, ephemeral=True)
         await bot.scheduler.process(str(payload["id"]))
 
@@ -578,7 +604,7 @@ class AdminGroup(app_commands.Group):
         await bot.scheduler.process(sub.schedule_id)
 
     @app_commands.command(
-        name="refresh", description="Horaro から最新のスケジュールをすぐに取得します"
+        name="refresh", description="登録先から最新のスケジュールをすぐに取得します"
     )
     @app_commands.describe(schedule="スケジュール（省略すると登録済みのすべて）")
     @app_commands.autocomplete(schedule=schedule_autocomplete)

@@ -1,7 +1,7 @@
 [project]
 name = "horaro-discord"
 version = "0.2.0"
-description = "Discord bot that notifies Horaro schedule programs"
+description = "Discord bot that notifies Horaro and RTA in Japan schedule programs"
 authors = [{ name = "drago-suzuki58", email = "dorasuzu58@gmail.com" }]
 readme = "README.md"
 license = "MIT"

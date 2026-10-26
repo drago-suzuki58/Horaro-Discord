@@ -8,7 +8,9 @@ import aiohttp
 import discord
 from discord import app_commands
 
-from .horaro import HoraroClient, Schedule
+from .horaro import HoraroClient
+from .rij import RijClient
+from .schedule import Schedule
 from .scheduler import Notification, Scheduler
 from .store import Store
 from .timeline import server_event_times
@@ -122,7 +124,7 @@ class DiscordAdapter:
             entity_type=discord.EntityType.external,
             privacy_level=discord.PrivacyLevel.guild_only,
             location=clip(schedule.link, 100),
-            description=f"{schedule.link}\nHoraro のスケジュールに合わせて自動で更新されます。",
+            description=f"{schedule.link}\nスケジュールに合わせて自動で更新されます。",
         )
 
     async def delete_server_event(self, guild_id: int, event_id: int) -> None:
@@ -139,8 +141,9 @@ class HoraroBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
         self.store = store
         self.horaro = HoraroClient(session)
+        self.rij = RijClient(session)
         self.adapter = DiscordAdapter(self)
-        self.scheduler = Scheduler(store, self.horaro, self.adapter)
+        self.scheduler = Scheduler(store, self.horaro, self.adapter, rij=self.rij)
         self._scheduler_task: asyncio.Task[None] | None = None
 
     async def setup_hook(self) -> None:

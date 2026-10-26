@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
-from .horaro import Item, Schedule
+from .schedule import Item, Schedule
 
 # A notified item is announced again only when its start moves by at least this much.
 RENOTIFY_SHIFT = 5 * 60

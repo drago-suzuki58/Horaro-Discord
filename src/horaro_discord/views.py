@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import discord
 from discord import ui
 
-from .horaro import Item, Schedule
+from .schedule import Item, Schedule
 from .scheduler import Kind, Notification
 from .timeline import item_title, now_next
 

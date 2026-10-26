@@ -8,14 +8,15 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from .horaro import Schedule, parse_schedule
+from .schedule import Schedule, parse_schedule
 from .timeline import Record
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE schedules (
     id TEXT PRIMARY KEY,
+    source TEXT NOT NULL DEFAULT 'horaro' CHECK (source IN ('horaro', 'rij')),
     event_name TEXT NOT NULL,
     payload TEXT NOT NULL,
     last_modified TEXT,
@@ -56,6 +57,7 @@ class ScheduleRow:
     fetched_at: int
     next_fetch_at: int
     failures: int
+    source: str = "horaro"
 
     @property
     def schedule(self) -> Schedule:
@@ -89,6 +91,15 @@ class Store:
             with self._db:
                 self._db.executescript(_SCHEMA)
                 self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        elif version == 1:
+            # Additive migration: IDs, subscriptions and notification records stay unchanged.
+            with self._db:
+                self._db.execute("BEGIN")
+                self._db.execute(
+                    "ALTER TABLE schedules ADD COLUMN source TEXT NOT NULL DEFAULT 'horaro' "
+                    "CHECK (source IN ('horaro', 'rij'))"
+                )
+                self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         elif version != SCHEMA_VERSION:
             raise RuntimeError(f"Unsupported database schema version: {version}")
 
@@ -105,20 +116,24 @@ class Store:
         last_modified: str | None,
         fetched_at: int,
         next_fetch_at: int,
+        source: str = "horaro",
     ) -> None:
         with self._db:
             self._db.execute(
                 """
                 INSERT INTO schedules
-                    (id, event_name, payload, last_modified, fetched_at, next_fetch_at, failures)
-                VALUES (?, ?, ?, ?, ?, ?, 0)
+                    (id, source, event_name, payload, last_modified, fetched_at, next_fetch_at,
+                     failures)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT (id) DO UPDATE SET
+                    source = excluded.source,
                     event_name = excluded.event_name, payload = excluded.payload,
                     last_modified = excluded.last_modified, fetched_at = excluded.fetched_at,
                     next_fetch_at = excluded.next_fetch_at, failures = 0
                 """,
                 (
                     payload["id"],
+                    source,
                     event_name,
                     json.dumps(payload, ensure_ascii=False),
                     last_modified,

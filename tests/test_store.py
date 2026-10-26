@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+import sqlite3
 from dataclasses import replace
 from pathlib import Path
 
-from helpers import payload
+from helpers import payload, rij_payload
 
+from horaro_discord.rij import normalize_schedule
 from horaro_discord.store import Store
 from horaro_discord.timeline import Record
 
@@ -134,3 +137,77 @@ def test_reopen_file(tmp_path: Path) -> None:
     reopened = Store(path)
     assert reopened.get_subscription(1, "sched1") is not None
     reopened.close()
+
+
+def test_migration_preserves_horaro_state(tmp_path: Path) -> None:
+    path = tmp_path / "v1.db"
+    data = payload([("Alpha", "ann", 30)])
+    with sqlite3.connect(path) as db:
+        db.executescript((Path(__file__).parent / "fixtures" / "store_v1.sql").read_text())
+        db.execute(
+            "INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("sched1", "Test Event", json.dumps(data), "lm", 100, 160, 2),
+        )
+        db.execute(
+            "INSERT INTO subscriptions VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (42, 1, 10, "sched1", 5, "Game", 99),
+        )
+        db.execute(
+            "INSERT INTO notifications VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (42, "k:alpha#0", "Alpha", 1000, 1200, 10, 555, 1),
+        )
+    db.close()
+
+    for _ in range(2):  # Reopening must not try to migrate again.
+        store = Store(path)
+        row = store.get_schedule("sched1")
+        assert row is not None
+        assert (row.source, row.payload, row.last_modified) == ("horaro", data, "lm")
+        assert (row.fetched_at, row.next_fetch_at, row.failures) == (100, 160, 2)
+        sub = store.get_subscription(1, "sched1")
+        assert sub is not None
+        assert (sub.id, sub.notice_minutes, sub.key_column, sub.server_event_id) == (
+            42,
+            5,
+            "Game",
+            99,
+        )
+        assert store.records(42) == {
+            "k:alpha#0": Record("k:alpha#0", "Alpha", 1000, 1200, 10, 555, True)
+        }
+        store.close()
+    with sqlite3.connect(path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+    db.close()
+
+
+def test_sources_with_same_remote_id_are_independent(tmp_path: Path) -> None:
+    path = tmp_path / "sources.db"
+    store = make_store(path)
+    subscribe(store, 1)
+    rij_data = normalize_schedule(rij_payload([("Beta", "bob", 30)]))
+    store.save_schedule(
+        rij_data,
+        source="rij",
+        event_name=rij_data["name"],
+        last_modified="rij-lm",
+        fetched_at=200,
+        next_fetch_at=260,
+    )
+    sub = store.add_subscription(
+        guild_id=1, channel_id=10, schedule_id="rij:sched1", notice_minutes=10, key_column="ゲーム"
+    )
+    store.save_record(sub.id, Record("k:beta#0", "Beta", 1000, 1000, 10, 123))
+    store.close()
+
+    store = Store(path)
+    row = store.get_schedule("rij:sched1")
+    assert row is not None and row.source == "rij" and row.payload == rij_data
+    assert store.subscribed_schedule_ids() == ["rij:sched1", "sched1"]
+    assert store.get_subscription(1, "rij:sched1") == sub
+    assert store.records(sub.id)["k:beta#0"].message_id == 123
+    store.remove_subscription(sub)
+    assert store.get_schedule("rij:sched1") is None
+    assert store.get_subscription(1, "sched1") is not None
+    store.close()

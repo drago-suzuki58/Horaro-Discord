@@ -3,7 +3,7 @@ from __future__ import annotations
 from discord import ui
 from helpers import Row, at, payload
 
-from horaro_discord.horaro import parse_schedule
+from horaro_discord.schedule import parse_schedule
 from horaro_discord.scheduler import Kind, Notification
 from horaro_discord.views import (
     ScheduleInfo,

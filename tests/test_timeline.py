@@ -5,7 +5,7 @@ from typing import Any
 
 from helpers import BASE_T, Row, at, payload
 
-from horaro_discord.horaro import Schedule, parse_schedule
+from horaro_discord.schedule import Schedule, parse_schedule
 from horaro_discord.timeline import (
     IDLE_FETCH_INTERVAL,
     LIVE_FETCH_INTERVAL,
